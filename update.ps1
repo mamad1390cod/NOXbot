@@ -164,6 +164,11 @@ try {
             Invoke-Py $py @('-m', 'pip', 'install', '-r', 'requirements-dev.txt', '--quiet') | Out-Null
             $testsCode = Invoke-Py $py @('-m', 'pytest', 'tests/', '-q')
             $auditCode = Invoke-Py $py @('tools/audit_buttons.py')
+            Write-Step "Checking for handler modules that cannot be imported"
+            $doctorCode = Invoke-Py $py @('tools/doctor.py')
+            if ($doctorCode -ne 0) {
+                Write-Warn "some modules are disabled - run: python tools/doctor.py --fix"
+            }
             if ($testsCode -eq 0) { Write-Ok "test suite passed" } else { Write-Warn "tests reported problems (code $testsCode)" }
             if ($auditCode -eq 0) { Write-Ok "button audit clean" } else { Write-Warn "button audit found issues (code $auditCode)" }
         }

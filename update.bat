@@ -93,6 +93,11 @@ echo ^>^> Running the health checks...
 python -m pip install -r requirements-dev.txt --quiet
 python -m pytest tests/ -q
 python tools/audit_buttons.py
+python tools/doctor.py
+if errorlevel 1 (
+    echo [!] Some handler modules are disabled. Fix them with:
+    echo     python tools/doctor.py --fix
+)
 
 :done
 echo.

@@ -47,16 +47,37 @@ def test_every_subrouter_has_exactly_one_parent():
             seen.add(id(sub))
 
 
-def test_admin_registry_covers_every_admin_module():
-    from bot.handlers.admin import verify_registry_complete
+def test_no_handler_module_is_broken():
+    """Every module under bot/handlers must import; a broken one is disabled."""
+    import bot.handlers  # noqa: F401 - triggers discovery
+    from bot.handlers import IMPORT_FAILURES
 
-    assert verify_registry_complete() == []
+    assert not IMPORT_FAILURES, (
+        "these handler modules cannot be imported, so their features are dead "
+        "(run `python tools/doctor.py --fix`): " + repr(IMPORT_FAILURES)
+    )
 
 
-def test_user_registry_covers_every_handler_module():
-    from bot.handlers import _verify_user_registry_complete
+def test_every_module_on_disk_is_mounted():
+    """No section may exist on disk yet be unreachable by users."""
+    import pkgutil
 
-    assert _verify_user_registry_complete() == []
+    from aiogram import Router
+    from importlib import import_module
+
+    from bot.handlers import admin_router, user_router
+    import bot.handlers as handlers_pkg
+    import bot.handlers.admin as admin_pkg
+
+    mounted = {r.name for r in user_router.sub_routers} | {r.name for r in admin_router.sub_routers}
+    for pkg in (handlers_pkg, admin_pkg):
+        for info in pkgutil.iter_modules(list(pkg.__path__)):
+            if info.ispkg or info.name.startswith("_"):
+                continue
+            module = import_module(f"{pkg.__name__}.{info.name}")
+            router = getattr(module, "router", None)
+            if isinstance(router, Router):
+                assert router.name in mounted, f"{pkg.__name__}.{info.name} is not mounted"
 
 
 def test_duplicate_registration_is_reported_not_silently_ignored():
@@ -82,10 +103,15 @@ def test_already_attached_router_is_reported_with_context():
 
 
 def test_admin_subrouters_are_permission_gated():
+    # Importing bot.handlers is what applies the gates (composition root), so
+    # this test must not rely on another test having imported it first.
+    from bot.handlers import admin_router
     from bot.handlers.admin import ADMIN_ROUTER_SPECS
 
     for spec in ADMIN_ROUTER_SPECS:
         assert spec.permissions, f"{spec.module} has no permission requirement"
-        for observer in (spec.router.message, spec.router.callback_query):
+
+    for sub in admin_router.sub_routers:
+        for observer in (sub.message, sub.callback_query):
             names = [type(f.callback).__name__ for f in observer._handler.filters]
-            assert "HasPermission" in names, f"{spec.module} is missing its RBAC gate"
+            assert "HasPermission" in names, f"{sub.name} is missing its RBAC gate"
