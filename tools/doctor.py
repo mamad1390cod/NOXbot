@@ -91,14 +91,48 @@ def render_states_group(class_name: str, states: list[str], source: Path) -> str
     )
 
 
+def check_orm() -> list[str]:
+    """Configure the ORM and report anything that is out of sync.
+
+    A relationship whose ``back_populates`` counterpart is missing breaks
+    *every* query in the bot, so it is checked explicitly. bot.models.compat
+    repairs those automatically; whatever it could not repair shows up here.
+    """
+    problems: list[str] = []
+    try:
+        import bot.models  # noqa: F401 - registers every model
+        from sqlalchemy.orm import configure_mappers
+
+        configure_mappers()
+    except Exception as exc:  # noqa: BLE001
+        problems.append(f"{type(exc).__name__}: {exc}")
+    return problems
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fix", action="store_true", help="write the missing state groups")
     args = parser.parse_args()
 
+    orm_problems = check_orm()
+    from bot.models.compat import HEALED_RELATIONSHIPS
+
+    if HEALED_RELATIONSHIPS:
+        print("Relationships completed automatically (declare them for clarity):")
+        for missing, needed_by in sorted(HEALED_RELATIONSHIPS.items()):
+            print(f"  ~ {missing}  (required by {needed_by})")
+        print()
+    if orm_problems:
+        print("Database models are out of sync:")
+        for problem in orm_problems:
+            print(f"  X {problem}")
+        print()
+
     failures = collect_failures()
     if not failures:
-        print("OK - every handler module imports cleanly.")
+        if orm_problems:
+            return 1
+        print("OK - every handler module imports cleanly and the ORM is consistent.")
         return 0
 
     print(f"{len(failures)} handler module(s) cannot be imported:\n")

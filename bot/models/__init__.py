@@ -82,3 +82,34 @@ __all__ = [
     "Broadcast",
     "BroadcastTemplate",
 ]
+
+# --------------------------------------------------------------------------- #
+#  Auto-registration of model modules living outside this list
+# --------------------------------------------------------------------------- #
+# Any bot/models/*.py that is not imported above is imported here, so a model
+# added later (wallet top-ups, coupons, ...) is always known to the ORM and to
+# ``Base.metadata.create_all`` - otherwise its table is never created and every
+# query against it fails.
+def _autoload_extra_models() -> None:
+    import logging
+    import pkgutil
+    from importlib import import_module
+
+    log = logging.getLogger(__name__)
+    for info in pkgutil.iter_modules(__path__):
+        if info.ispkg or info.name.startswith("_") or info.name in {"base", "compat"}:
+            continue
+        module_name = f"{__name__}.{info.name}"
+        if module_name in globals().get("_LOADED_MODULES", ()):  # pragma: no cover
+            continue
+        try:
+            import_module(module_name)
+        except Exception as exc:  # noqa: BLE001 - reported, never hidden
+            log.error("model module %s could not be imported: %s: %s", module_name, type(exc).__name__, exc)
+
+
+_autoload_extra_models()
+
+# Completes any ``back_populates`` whose counterpart is missing (see the module
+# docstring); importing it also registers the before_configured hook.
+from bot.models import compat  # noqa: E402,F401
