@@ -1,6 +1,12 @@
 """Database models package."""
 
 from bot.models.base import Base
+
+# Imported first on purpose: it registers the "before_configured" hook that
+# completes half-declared relationships. If an extra model triggered mapper
+# configuration before the hook existed, SQLAlchemy would cache the failure and
+# no later repair could recover it.
+from bot.models import compat as _compat  # noqa: F401
 from bot.models.user import User
 from bot.models.category import Category
 from bot.models.product import Product
@@ -110,6 +116,5 @@ def _autoload_extra_models() -> None:
 
 _autoload_extra_models()
 
-# Completes any ``back_populates`` whose counterpart is missing (see the module
-# docstring); importing it also registers the before_configured hook.
-from bot.models import compat  # noqa: E402,F401
+# Repair anything the auto-loaded modules brought in.
+_compat.heal_back_populates()

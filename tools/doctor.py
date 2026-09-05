@@ -109,6 +109,67 @@ def check_orm() -> list[str]:
     return problems
 
 
+def write_missing_relationships() -> list[str]:
+    """Persist the relationships that bot.models.compat had to create at runtime.
+
+    Writing them into the model file makes the fix permanent and removes the
+    need for the runtime repair (which only exists as a safety net).
+    """
+    import inspect as pyinspect
+
+    from bot.models.compat import HEALED_RELATIONSHIPS
+
+    written: list[str] = []
+    for parent_attr, child_attr in sorted(HEALED_RELATIONSHIPS.items()):
+        parent_name, attr = parent_attr.split(".", 1)
+        child_name, child_rel = child_attr.split(".", 1)
+
+        import bot.models
+
+        parent = getattr(bot.models, parent_name, None) or Base_registry_lookup(parent_name)
+        child = getattr(bot.models, child_name, None) or Base_registry_lookup(child_name)
+        if parent is None or child is None:
+            continue
+
+        source_file = Path(pyinspect.getsourcefile(parent))
+        text = source_file.read_text(encoding="utf-8")
+        if f"{attr}:" in text or f"{attr} =" in text:
+            continue
+
+        # foreign key column on the child side, e.g. "TopUpRequest.user_id"
+        fk_columns = [
+            f"{child_name}.{column.name}"
+            for column in child.__table__.columns
+            if any(fk.column.table is parent.__table__ for fk in column.foreign_keys)
+        ]
+        fk_line = f'\n        foreign_keys="{fk_columns[0]}",' if len(fk_columns) == 1 else ""
+
+        block = (
+            f'\n    # Added by tools/doctor.py: required by {child_name}.{child_rel}'
+            f'\n    {attr}: Mapped[list["{child_name}"]] = relationship('
+            f'\n        "{child_name}",'
+            f'\n        back_populates="{child_rel}",'
+            f'\n        cascade="all, delete-orphan",'
+            f"{fk_line}"
+            f"\n    )\n"
+        )
+
+        marker = f'__tablename__ = "{parent.__tablename__}"'
+        if marker not in text:
+            continue
+        index = text.index(marker) + len(marker)
+        source_file.write_text(text[:index] + "\n" + block + text[index:], encoding="utf-8")
+        written.append(f"{parent_name}.{attr} -> {source_file.name}")
+    return written
+
+
+def Base_registry_lookup(name: str):  # noqa: N802 - small helper
+    from bot.models.base import Base
+
+    value = Base.registry._class_registry.get(name)  # noqa: SLF001
+    return value if isinstance(value, type) else None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fix", action="store_true", help="write the missing state groups")
@@ -118,9 +179,15 @@ def main() -> int:
     from bot.models.compat import HEALED_RELATIONSHIPS
 
     if HEALED_RELATIONSHIPS:
-        print("Relationships completed automatically (declare them for clarity):")
+        print("Relationships that were missing:")
         for missing, needed_by in sorted(HEALED_RELATIONSHIPS.items()):
             print(f"  ~ {missing}  (required by {needed_by})")
+        if args.fix:
+            written = write_missing_relationships()
+            for entry in written:
+                print(f"    written permanently: {entry}")
+        else:
+            print("    (repaired at runtime; run with --fix to write them into the model)")
         print()
     if orm_problems:
         print("Database models are out of sync:")

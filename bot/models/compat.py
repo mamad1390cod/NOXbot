@@ -70,9 +70,29 @@ def _resolve(argument: Any) -> type | None:
     return None
 
 
+def reset_failed_mappers() -> list[str]:
+    """Clear SQLAlchemy's cached "this mapper failed" flags.
+
+    Once a mapper fails to configure, SQLAlchemy remembers it forever and
+    re-raises the same error on every later attempt - repairing the model
+    afterwards would have no effect. Clearing the flag makes the retry real.
+    """
+    cleared: list[str] = []
+    for cls in _mapped_classes():
+        mapper = cls.__mapper__
+        if getattr(mapper, "_configure_failed", False):
+            mapper._configure_failed = False
+            mapper._ready_for_configure = True
+            cleared.append(cls.__name__)
+    return cleared
+
+
 def heal_back_populates() -> dict[str, str]:
     """Create every missing ``back_populates`` counterpart. Returns the repairs."""
     repaired: dict[str, str] = {}
+    # Must come first: while a failure is cached, even inspecting a mapper
+    # re-raises it, so the repair below could not run at all.
+    reset_failed_mappers()
 
     for cls in _mapped_classes():
         mapper = cls.__mapper__
@@ -125,3 +145,29 @@ def heal_back_populates() -> dict[str, str]:
 def _heal_before_configure() -> None:
     """Run the repair right before SQLAlchemy validates the mappers."""
     heal_back_populates()
+
+
+def ensure_mappers_ready() -> None:
+    """Configure the ORM, repairing broken links first, and fail loudly if not.
+
+    Called from ``init_db()`` so a model that is out of sync is reported once at
+    startup instead of once per button press.
+    """
+    from sqlalchemy.orm import configure_mappers
+
+    try:
+        configure_mappers()
+        return
+    except Exception as first_error:  # noqa: BLE001 - retried right below
+        logger.warning("ORM not consistent yet (%s) - repairing...", first_error)
+
+    heal_back_populates()
+    reset_failed_mappers()
+    try:
+        configure_mappers()
+    except Exception:
+        logger.error(
+            "the ORM could not be repaired automatically - run `python tools/doctor.py --fix`"
+        )
+        raise
+    logger.info("ORM repaired: %s", HEALED_RELATIONSHIPS or "no changes needed")

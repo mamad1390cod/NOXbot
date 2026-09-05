@@ -25,7 +25,13 @@ def get_engine() -> AsyncEngine:
 
 
 async def init_db() -> None:
-    """Initialize database tables."""
+    """Initialize database tables (and validate the ORM first)."""
+    from bot.models.compat import ensure_mappers_ready
+
+    # Surfaces a half-declared relationship once, at startup, instead of on
+    # every single update - and repairs it when possible.
+    ensure_mappers_ready()
+
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
