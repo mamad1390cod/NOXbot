@@ -1,0 +1,3 @@
+# Keep the Windows helper scripts CRLF so they run correctly after a clone.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
