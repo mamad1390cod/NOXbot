@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.db
+*.sqlite
+.env
+noxbot_shop.egg-info/
+backups/
+exports/
+.claude/
+*.egg-info/
+eac5d45ed12c
