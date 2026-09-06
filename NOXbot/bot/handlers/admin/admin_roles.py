@@ -278,7 +278,7 @@ async def cb_profile_detail(callback: CallbackQuery, uow, user: User) -> None:
     role_name = profile.role.name if profile.role else "بدون نقش"
     text = (
         "🛡 <b>پروفایل ادمین</b>\n\n"
-        f"👤 نام: {profile.user.full_name if profile.user else '?'} (@{profile.user.username or '-'})\n"
+        f"👤 نام: {profile.user.display_name if profile.user else '?'} (@{profile.user.username or '-'})\n"
         f"🎭 نقش: {role_name}\n"
         f"📊 وضعیت: {status_map.get(profile.status, profile.status)}\n"
     )
