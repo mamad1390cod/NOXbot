@@ -397,7 +397,8 @@ class OrderRepository(BaseRepository[Order]):
 class OrderDeliveryRepository(BaseRepository[OrderDelivery]):
     """Repository for order delivery data."""
 
-    model = OrderDelivery
+    def __init__(self, session: AsyncSession) -> None:
+        super().__init__(session, OrderDelivery)
 
     async def get_by_order_id(self, order_id: str) -> OrderDelivery | None:
         """Get delivery data for an order."""
