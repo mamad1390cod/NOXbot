@@ -1,0 +1,102 @@
+[project]
+name = "noxbot-shop"
+version = "1.0.0"
+description = "NOXbot Shop — production-ready Persian Telegram gaming shop bot."
+authors = [{ name = "NOXbot" }]
+readme = "README.md"
+requires-python = ">=3.12"
+
+dependencies = [
+    "aiogram>=3.13,<4.0",
+    "SQLAlchemy[asyncio]>=2.0,<3.0",
+    "aiosqlite>=0.20",
+    "alembic>=1.13",
+    "APScheduler>=3.10,<4.0",
+    "pydantic>=2.8,<3.0",
+    "pydantic-settings>=2.4,<3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[project.scripts]
+noxbot = "main:run"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["main"]
+
+[tool.setuptools.packages.find]
+include = [
+    "config*",
+    "core*",
+    "database*",
+    "infrastructure*",
+    "bot*",
+    "plugins*",
+    "keyboards*",
+    "texts*",
+    "utils*",
+]
+
+# --------------------------------------------------------------------------- #
+#  Ruff — formatter + linter
+# --------------------------------------------------------------------------- #
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+src = ["."]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "BLE",  # flake8-blind-except (blind excepts must be justified with noqa)
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "N",    # pep8-naming
+    "ANN",  # flake8-annotations
+    "ASYNC",# flake8-async
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "ANN401",  # allow typing.Any where justified
+    "B008",    # function call in default arg (aiogram/pydantic patterns)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"migrations/*" = ["ANN", "E501"]
+# Localized text bundles legitimately contain non-ASCII (Persian/Arabic script)
+# characters that ruff's ambiguous-unicode checks would flag, and translation
+# strings shouldn't be forced to wrap (E501).
+"texts/*.py" = ["RUF001", "RUF002", "RUF003", "E501"]
+"plugins/*/texts.py" = ["RUF001", "RUF002", "RUF003", "E501"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+
+# --------------------------------------------------------------------------- #
+#  Mypy — strict typing
+# --------------------------------------------------------------------------- #
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+plugins = ["pydantic.mypy"]
+exclude = "migrations/"
+
+[[tool.mypy.overrides]]
+module = ["apscheduler.*"]
+ignore_missing_imports = true
