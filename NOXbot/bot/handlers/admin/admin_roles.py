@@ -161,7 +161,9 @@ async def do_add_admin_telegram(message: Message, state: FSMContext, uow, user: 
         return
 
     await state.set_data({"new_admin_user_id": target.id})
-    roles = await rbac.list_roles(include_system=False)
+    # Show all roles except owner (owner can't be assigned)
+    all_roles = await rbac.list_roles(include_system=True)
+    roles = [r for r in all_roles if r.slug != "owner"]
     await state.set_state(AdminRolesStates.waiting_role_pick)
     await message.answer(
         f"👤 <b>{target.display_name}</b> را با چه نقشی ادمین کنم؟",
@@ -220,7 +222,9 @@ async def cb_change_role(callback: CallbackQuery, state: FSMContext) -> None:
     uow = UnitOfWork()
     async with uow:
         rbac = RbacService(uow)
-        roles = await rbac.list_roles(include_system=False)
+        # Show all roles except owner
+        all_roles = await rbac.list_roles(include_system=True)
+        roles = [r for r in all_roles if r.slug != "owner"]
     await state.set_state(AdminRolesStates.waiting_role_pick)
     await callback.message.answer("🎭 نقش جدید را انتخاب کنید:", reply_markup=role_picker_keyboard(roles, "setrole"))
     await callback.answer()
