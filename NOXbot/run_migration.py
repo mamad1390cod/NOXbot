@@ -49,10 +49,10 @@ async def run_migration():
                         file_name VARCHAR(255),
                         note TEXT,
                         status VARCHAR(20) NOT NULL DEFAULT 'draft',
-                        delivered_at TIMESTAMP WITH TIME ZONE,
+                        delivered_at TIMESTAMP,
                         created_by_id VARCHAR(36),
-                        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
                         FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE SET NULL
                     )
