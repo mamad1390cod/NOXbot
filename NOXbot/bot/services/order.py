@@ -126,7 +126,7 @@ class OrderService(BaseService):
                     # Config was deleted - track it
                     unavailable_products.append(f"کانفیگ (ID: {item.config_product_id[:8]}...)")
                     continue
-                if not config.is_active:
+                if config.status != ConfigProductStatus.ACTIVE:
                     # Config is inactive - track it
                     unavailable_products.append(config.title)
                     continue
