@@ -15,6 +15,14 @@ router = Router(name="cart")
 
 async def _show_cart(callback: CallbackQuery, uow, user) -> None:
     """Edit message to show the cart."""
+    # Answer callback immediately to prevent timeout (Telegram gives 30 seconds)
+    try:
+        await callback.answer()
+    except Exception as e:
+        # Callback might already be expired - log and continue
+        import logging
+        logging.getLogger(__name__).debug(f"callback.answer() failed: {e}")
+    
     cart_service = CartService(uow)
     summary = await cart_service.get_cart_summary(user.id)
 
@@ -25,7 +33,6 @@ async def _show_cart(callback: CallbackQuery, uow, user) -> None:
             inline_keyboard=[[back_button("menu:home")]]
         )
         await safe_edit_text(callback, CART_EMPTY(), reply_markup=kb)
-        await callback.answer()
         return
 
     lines = []
@@ -43,7 +50,6 @@ async def _show_cart(callback: CallbackQuery, uow, user) -> None:
         + f"\n📦 تعداد آیتم: {summary['total_items']}"
     )
     await safe_edit_text(callback, text, reply_markup=cart_keyboard(summary["items"]))
-    await callback.answer()
 
 
 @router.callback_query(F.data == "menu:cart")
